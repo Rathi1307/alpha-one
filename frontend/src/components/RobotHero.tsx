@@ -1,8 +1,9 @@
-import React, { useEffect, useRef } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import * as THREE from 'three';
 
 export const RobotHero: React.FC = () => {
   const containerRef = useRef<HTMLDivElement>(null);
+  const [webglUnavailable, setWebglUnavailable] = useState(false);
 
   useEffect(() => {
     const container = containerRef.current;
@@ -19,7 +20,22 @@ export const RobotHero: React.FC = () => {
     const camera = new THREE.PerspectiveCamera(36, width / height, 0.1, 100);
     camera.position.set(0, 0.38, 3.9);
 
-    const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+    // WebGL can be disabled by a browser, graphics driver, or corporate policy.
+    // Do not let the decorative hero take down the entire chess application.
+    const canvas = document.createElement('canvas');
+    const webglContext = canvas.getContext('webgl2') || canvas.getContext('webgl');
+    if (!webglContext) {
+      setWebglUnavailable(true);
+      return;
+    }
+
+    let renderer: THREE.WebGLRenderer;
+    try {
+      renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+    } catch {
+      setWebglUnavailable(true);
+      return;
+    }
     renderer.setSize(width, height);
     renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
     renderer.shadowMap.enabled = true;
@@ -425,6 +441,29 @@ export const RobotHero: React.FC = () => {
       }
     };
   }, []);
+
+  if (webglUnavailable) {
+    return (
+      <div
+        aria-label="AlphaOne engine visual"
+        style={{
+          width: '100%',
+          height: '100%',
+          minHeight: 260,
+          display: 'grid',
+          placeItems: 'center',
+          color: '#f5f7fa',
+          background: 'radial-gradient(circle at 50% 40%, #363b47 0%, #17191f 48%, #0b0c10 100%)',
+          borderRadius: 24,
+          fontFamily: 'monospace',
+          letterSpacing: '0.14em',
+          textTransform: 'uppercase',
+        }}
+      >
+        <span>AlphaOne · Engine Online</span>
+      </div>
+    );
+  }
 
   return (
     <div

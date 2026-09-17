@@ -40,26 +40,29 @@ const CapturedRow: React.FC<CapturedRowProps> = ({
       minHeight: 22,
     }}
   >
-    <div style={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: 1 }}>
-      {capturedByOpponent.map(({ type, count }) =>
-        Array.from({ length: count }).map((_, i) => (
-          <span
-            key={`${type}-${i}`}
-            style={{
-              fontSize: 16,
-              lineHeight: 1,
-              color: isWhite ? '#eeeed2' : '#1a1a1a',
-              textShadow: isWhite
-                ? '0 1px 3px rgba(0,0,0,0.6)'
-                : '0 1px 2px rgba(255,255,255,0.15)',
-              filter: 'drop-shadow(0 1px 2px rgba(0,0,0,0.3))',
-            }}
-          >
-            {PIECE_UNICODE[isWhite ? type : type.toLowerCase()]}
-          </span>
-        ))
-      )}
-    </div>
+      {capturedByOpponent.map(({ type, count }) => {
+        const pieceCode = `${isWhite ? 'w' : 'b'}${type.toUpperCase() === 'P' ? 'p' : type.toUpperCase()}`;
+        return (
+          <div key={type} style={{ display: 'inline-flex', alignItems: 'center', marginLeft: -3 }}>
+            {Array.from({ length: count }).map((_, i) => (
+              <img
+                key={`${type}-${i}`}
+                src={`/pieces/${pieceCode}.png`}
+                alt={type}
+                draggable={false}
+                style={{
+                  width: 18,
+                  height: 18,
+                  objectFit: 'contain',
+                  filter: 'drop-shadow(0 1px 2px rgba(0,0,0,0.4))',
+                  marginLeft: i > 0 ? -8 : 0,
+                  userSelect: 'none',
+                }}
+              />
+            ))}
+          </div>
+        );
+      })}
     {materialAdvantage > 0 && (
       <span
         style={{
