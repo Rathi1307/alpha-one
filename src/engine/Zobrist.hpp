@@ -10,33 +10,29 @@ class Zobrist {
 public:
     static void init() noexcept;
 
-    // Piece on square hash (sq: 0..63, piece: 0..15)
-    static uint64_t pieceSquare(int sq, Piece p) noexcept {
-        return piece_square_table_[sq][static_cast<uint8_t>(p)];
+    static uint64_t pieceSquare(uint8_t piece, uint8_t square) noexcept {
+        return board_hash_[piece % 12][square & 63];
     }
 
-    // Black to move key
-    static uint64_t sideToMove() noexcept {
-        return side_to_move_key_;
+    static uint64_t enPassant(uint8_t square) noexcept {
+        return passant_hash_[square & 63];
     }
 
-    // Castling rights key (0..15)
-    static uint64_t castling(uint8_t rights) noexcept {
-        return castling_keys_[rights & 0x0F];
-    }
-
-    // En passant file key (col: 0..7, or -1 for none)
-    static uint64_t enPassant(int col) noexcept {
-        if (col < 0 || col >= 8) return 0ULL;
-        return en_passant_keys_[col];
-    }
+    static uint64_t sideToMove() noexcept { return turn_hash_; }
+    static uint64_t whiteKingCastle() noexcept { return wkc_hash_; }
+    static uint64_t whiteQueenCastle() noexcept { return wqc_hash_; }
+    static uint64_t blackKingCastle() noexcept { return bkc_hash_; }
+    static uint64_t blackQueenCastle() noexcept { return bqc_hash_; }
 
 private:
     static bool initialized_;
-    static std::array<std::array<uint64_t, 16>, 64> piece_square_table_;
-    static uint64_t side_to_move_key_;
-    static std::array<uint64_t, 16> castling_keys_;
-    static std::array<uint64_t, 8> en_passant_keys_;
+    static std::array<std::array<uint64_t, 64>, 12> board_hash_;
+    static std::array<uint64_t, 64> passant_hash_;
+    static uint64_t turn_hash_;
+    static uint64_t wkc_hash_;
+    static uint64_t wqc_hash_;
+    static uint64_t bkc_hash_;
+    static uint64_t bqc_hash_;
 };
 
 } // namespace alphaone

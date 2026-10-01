@@ -1,141 +1,68 @@
 #pragma once
 
 #include "Types.hpp"
+#include <cstdint>
 #include <string>
-#include <tuple>
+#include <string_view>
 
 namespace alphaone {
 
-class Move {
-public:
-    enum Flags : uint8_t {
-        None        = 0,
-        Capture     = 1 << 0,
-        EnPassant   = 1 << 1,
-        Castle      = 1 << 2,
-        Promotion   = 1 << 3
-    };
-
+struct Move {
     uint8_t from = 0;
     uint8_t to = 0;
-    Piece piece_moved = Piece::Empty;
-    Piece piece_captured = Piece::Empty;
-    PieceType promotion_type = PieceType::None;
-    uint8_t flags = None;
+    uint8_t promotion = EMPTY;
 
-    constexpr Move() noexcept = default;
+    constexpr Move() noexcept : from(0), to(0), promotion(EMPTY) {}
+    constexpr Move(uint8_t f, uint8_t t, uint8_t prom = EMPTY) noexcept
+        : from(f), to(t), promotion(prom) {}
 
-    constexpr Move(uint8_t from_sq, uint8_t to_sq, Piece moved, Piece captured = Piece::Empty,
-                   uint8_t move_flags = None, PieceType promo = PieceType::None) noexcept
-        : from(from_sq), to(to_sq), piece_moved(moved), piece_captured(captured),
-          promotion_type(promo), flags(move_flags) {}
-
-    // Convenience constructors
-    static constexpr Move makeQuiet(uint8_t from_sq, uint8_t to_sq, Piece moved) noexcept {
-        return Move(from_sq, to_sq, moved, Piece::Empty, None, PieceType::None);
+    bool isNull() const noexcept {
+        return from == 0 && to == 0 && promotion == EMPTY;
     }
 
-    static constexpr Move makeCapture(uint8_t from_sq, uint8_t to_sq, Piece moved, Piece captured) noexcept {
-        return Move(from_sq, to_sq, moved, captured, Capture, PieceType::None);
+    bool operator==(const Move& rhs) const noexcept {
+        return from == rhs.from && to == rhs.to && promotion == rhs.promotion;
     }
 
-    static constexpr Move makeEnPassant(uint8_t from_sq, uint8_t to_sq, Piece moved, Piece captured) noexcept {
-        return Move(from_sq, to_sq, moved, captured, EnPassant | Capture, PieceType::None);
+    bool operator!=(const Move& rhs) const noexcept {
+        return !(*this == rhs);
     }
 
-    static constexpr Move makeCastle(uint8_t from_sq, uint8_t to_sq, Piece moved) noexcept {
-        return Move(from_sq, to_sq, moved, Piece::Empty, Castle, PieceType::None);
-    }
-
-    static constexpr Move makePromotion(uint8_t from_sq, uint8_t to_sq, Piece moved, Piece captured, PieceType promo) noexcept {
-        uint8_t f = Promotion;
-        if (captured != Piece::Empty) f |= Capture;
-        return Move(from_sq, to_sq, moved, captured, f, promo);
-    }
-
-    constexpr bool isNull() const noexcept {
-        return from == 0 && to == 0 && piece_moved == Piece::Empty;
-    }
-
-    constexpr bool isCapture() const noexcept {
-        return (flags & Capture) != 0 || piece_captured != Piece::Empty;
-    }
-
-    constexpr bool isEnPassant() const noexcept {
-        return (flags & EnPassant) != 0;
-    }
-
-    constexpr bool isCastle() const noexcept {
-        return (flags & Castle) != 0;
-    }
-
-    constexpr bool isPromotion() const noexcept {
-        return (flags & Promotion) != 0 || promotion_type != PieceType::None;
-    }
-
-    constexpr int startRow() const noexcept { return squareRow(from); }
-    constexpr int startCol() const noexcept { return squareCol(from); }
-    constexpr int endRow() const noexcept { return squareRow(to); }
-    constexpr int endCol() const noexcept { return squareCol(to); }
-
-    // Python-compatible moveID: start_row * 1000 + start_col * 100 + end_row * 10 + end_col
-    constexpr int moveID() const noexcept {
-        return startRow() * 1000 + startCol() * 100 + endRow() * 10 + endCol();
-    }
-
-    constexpr bool operator==(const Move& other) const noexcept {
-        return from == other.from && to == other.to && promotion_type == other.promotion_type;
-    }
-
-    constexpr bool operator!=(const Move& other) const noexcept {
-        return !(*this == other);
-    }
-
-    // Standard UCI string format: "e2e4", "e7e8q"
+    // Convert to UCI string (e.g., "e2e4", "e7e8q")
     std::string toUci() const {
-        std::string s = squareToAlgebraic(from) + squareToAlgebraic(to);
-        if (isPromotion()) {
-            switch (promotion_type) {
-                case PieceType::Queen:  s += 'q'; break;
-                case PieceType::Rook:   s += 'r'; break;
-                case PieceType::Bishop: s += 'b'; break;
-                case PieceType::Knight: s += 'n'; break;
-                default:                s += 'q'; break;
-            }
+        if (isNull()) return "0000";
+        std::string uci = squareToAlgebraic(from) + squareToAlgebraic(to);
+        if (promotion != EMPTY) {
+            if (promotion == WHITE_QUEEN || promotion == BLACK_QUEEN) uci += 'q';
+            else if (promotion == WHITE_ROOK || promotion == BLACK_ROOK) uci += 'r';
+            else if (promotion == WHITE_BISHOP || promotion == BLACK_BISHOP) uci += 'b';
+            else if (promotion == WHITE_KNIGHT || promotion == BLACK_KNIGHT) uci += 'n';
         }
-        return s;
+        return uci;
     }
 
-    // Format matching Python getChessNotation()
-    std::string getChessNotation() const {
-        if (isPromotion()) {
-            return squareToAlgebraic(to) + "Q";
-        }
-        if (isCastle()) {
-            return (endCol() == 1 || endCol() == 2) ? "0-0-0" : "0-0";
-        }
-        if (isEnPassant()) {
-            std::string from_alg = squareToAlgebraic(from);
-            std::string to_alg = squareToAlgebraic(to);
-            return std::string(1, from_alg[0]) + "x" + to_alg + " e.p.";
-        }
-        if (isCapture()) {
-            PieceType pt = typeOfPiece(piece_moved);
-            if (pt == PieceType::Pawn) {
-                return std::string(1, squareToAlgebraic(from)[0]) + "x" + squareToAlgebraic(to);
+    static Move fromUci(std::string_view uci, uint8_t turn = WHITE) {
+        if (uci.size() < 4) return Move{};
+        int from_sq = algebraicToSquare(uci.substr(0, 2));
+        int to_sq = algebraicToSquare(uci.substr(2, 2));
+        if (from_sq < 0 || to_sq < 0) return Move{};
+
+        uint8_t prom = EMPTY;
+        if (uci.size() >= 5) {
+            char p = uci[4];
+            if (turn == WHITE) {
+                if (p == 'q' || p == 'Q') prom = WHITE_QUEEN;
+                else if (p == 'r' || p == 'R') prom = WHITE_ROOK;
+                else if (p == 'b' || p == 'B') prom = WHITE_BISHOP;
+                else if (p == 'n' || p == 'N') prom = WHITE_KNIGHT;
             } else {
-                std::string piece_str = pieceToPythonString(piece_moved);
-                return std::string(1, piece_str[1]) + "x" + squareToAlgebraic(to);
-            }
-        } else {
-            PieceType pt = typeOfPiece(piece_moved);
-            if (pt == PieceType::Pawn) {
-                return squareToAlgebraic(to);
-            } else {
-                std::string piece_str = pieceToPythonString(piece_moved);
-                return std::string(1, piece_str[1]) + squareToAlgebraic(to);
+                if (p == 'q' || p == 'Q') prom = BLACK_QUEEN;
+                else if (p == 'r' || p == 'R') prom = BLACK_ROOK;
+                else if (p == 'b' || p == 'B') prom = BLACK_BISHOP;
+                else if (p == 'n' || p == 'N') prom = BLACK_KNIGHT;
             }
         }
+        return Move{static_cast<uint8_t>(from_sq), static_cast<uint8_t>(to_sq), prom};
     }
 };
 

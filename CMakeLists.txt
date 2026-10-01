@@ -8,7 +8,6 @@ set(CMAKE_CXX_EXTENSIONS OFF)
 # Common engine sources
 set(ENGINE_SOURCES
     src/engine/Board.cpp
-    src/engine/MoveGenerator.cpp
     src/engine/Evaluation.cpp
     src/engine/Search.cpp
     src/engine/TranspositionTable.cpp

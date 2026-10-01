@@ -5,14 +5,13 @@ echo "=========================================="
 echo " AlphaOne Native C++ Engine Build (POSIX)"
 echo "=========================================="
 
-CXX=${CXX:-g++}
+CXX=${CXX:-clang++}
 AR=${AR:-ar}
 
 mkdir -p bin
 
 SOURCES=(
     "src/engine/Board.cpp"
-    "src/engine/MoveGenerator.cpp"
     "src/engine/Evaluation.cpp"
     "src/engine/Search.cpp"
     "src/engine/TranspositionTable.cpp"

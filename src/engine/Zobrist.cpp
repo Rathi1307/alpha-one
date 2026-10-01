@@ -1,42 +1,38 @@
 #include "Zobrist.hpp"
+#include <random>
 
 namespace alphaone {
 
 bool Zobrist::initialized_ = false;
-std::array<std::array<uint64_t, 16>, 64> Zobrist::piece_square_table_{};
-uint64_t Zobrist::side_to_move_key_ = 0ULL;
-std::array<uint64_t, 16> Zobrist::castling_keys_{};
-std::array<uint64_t, 8> Zobrist::en_passant_keys_{};
-
-// Deterministic 64-bit pseudo-random generator (SplitMix64)
-static uint64_t splitmix64(uint64_t& state) noexcept {
-    state += 0x9E3779B97F4A7C15ULL;
-    uint64_t z = state;
-    z = (z ^ (z >> 30)) * 0xBF58476D1CE4E5B9ULL;
-    z = (z ^ (z >> 27)) * 0x94D049BB133111EBULL;
-    return z ^ (z >> 31);
-}
+std::array<std::array<uint64_t, 64>, 12> Zobrist::board_hash_{};
+std::array<uint64_t, 64> Zobrist::passant_hash_{};
+uint64_t Zobrist::turn_hash_ = 0;
+uint64_t Zobrist::wkc_hash_ = 0;
+uint64_t Zobrist::wqc_hash_ = 0;
+uint64_t Zobrist::bkc_hash_ = 0;
+uint64_t Zobrist::bqc_hash_ = 0;
 
 void Zobrist::init() noexcept {
     if (initialized_) return;
 
-    uint64_t seed = 0x123456789ABCDEF0ULL;
+    // Use deterministic 64-bit Mersenne Twister seed for consistent hashing
+    std::mt19937_64 rng(1070372ULL);
 
-    for (int sq = 0; sq < 64; ++sq) {
-        for (int p = 0; p < 16; ++p) {
-            piece_square_table_[sq][p] = splitmix64(seed);
+    for (int p = 0; p < 12; ++p) {
+        for (int sq = 0; sq < 64; ++sq) {
+            board_hash_[p][sq] = rng();
         }
     }
 
-    side_to_move_key_ = splitmix64(seed);
-
-    for (int i = 0; i < 16; ++i) {
-        castling_keys_[i] = splitmix64(seed);
+    for (int sq = 0; sq < 64; ++sq) {
+        passant_hash_[sq] = rng();
     }
 
-    for (int i = 0; i < 8; ++i) {
-        en_passant_keys_[i] = splitmix64(seed);
-    }
+    turn_hash_ = rng();
+    wkc_hash_  = rng();
+    wqc_hash_  = rng();
+    bkc_hash_  = rng();
+    bqc_hash_  = rng();
 
     initialized_ = true;
 }

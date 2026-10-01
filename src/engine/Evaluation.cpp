@@ -1,118 +1,250 @@
 #include "Evaluation.hpp"
+#include "Bitboard.hpp"
+#include <algorithm>
 
 namespace alphaone {
 
-// Positional tables matching Python ChessAI.py exactly:
-const std::array<std::array<int, 8>, 8> Evaluation::PAWN_SCORES = {{
-    {  0,   0,   0,   0,   0,   0,   0,   0},
-    { 78,  83,  86,  73, 102,  82,  85,  90},
-    {  7,  29,  21,  44,  40,  31,  44,   7},
-    {-17,  16,  -2,  15,  14,   0,  15, -13},
-    {-26,   3,  10,   9,   6,   1,   0, -23},
-    {-22,   9,   5, -11, -10,  -2,   3, -19},
-    {-31,   8,  -7, -37, -36, -14,   3, -31},
-    {  0,   0,   0,   0,   0,   0,   0,   0}
+// Standard tapered PSTs (PeSTO-style, 0 = a8, 63 = h1 for White perspective with vertical flip for Black)
+const std::array<int, 64> Evaluation::MG_PAWN_TABLE = {{
+      0,   0,   0,   0,   0,   0,   0,   0,
+     98, 134,  61,  95,  68, 126,  34, -11,
+     -6,   7,  26,  31,  65,  56,  25, -20,
+    -14,  13,   6,  21,  23,  12,  17, -23,
+    -27,  -2,  -5,  12,  17,   6,  10, -25,
+    -26,  -4,  -4, -10,   3,   3,  33, -12,
+    -35,  -1, -20, -23, -15,  24,  38, -22,
+      0,   0,   0,   0,   0,   0,   0,   0
 }};
 
-const std::array<std::array<int, 8>, 8> Evaluation::KNIGHT_SCORES = {{
-    {-66, -53, -75, -75, -10, -55, -58, -70},
-    { -3,  -6, 100, -36,   4,  62,  -4, -14},
-    { 10,  67,   1,  74,  73,  27,  62,  -2},
-    { 24,  24,  45,  37,  33,  41,  25,  17},
-    { -1,   5,  31,  21,  22,  35,   2,   0},
-    {-18,  10,  13,  22,  18,  15,  11, -14},
-    {-23, -15,   2,   0,   2,   0, -23, -20},
-    {-66, -53, -75, -75, -10, -55, -58, -70}
+const std::array<int, 64> Evaluation::EG_PAWN_TABLE = {{
+      0,   0,   0,   0,   0,   0,   0,   0,
+    178, 173, 158, 134, 147, 132, 165, 187,
+     94, 100,  85,  67,  56,  53,  82,  84,
+     32,  24,  13,   5,  -2,   4,  17,  17,
+     13,   9,  -3,  -7,  -7,  -8,   3,  -1,
+      4,   7,  -6,   1,   0,  -5,  -1,  -8,
+     13,   8,   8, -10,  -7,   0,  15,  -7,
+      0,   0,   0,   0,   0,   0,   0,   0
 }};
 
-const std::array<std::array<int, 8>, 8> Evaluation::BISHOP_SCORES = {{
-    {-59, -78, -82, -76, -23, -107, -37, -50},
-    {-11,  20,  35, -42, -39,   31,   2, -22},
-    { -9,  39, -32,  41,  52,  -10,  28, -14},
-    { 25,  17,  20,  34,  26,   25,  15,  10},
-    { 13,  10,  17,  23,  17,   16,   0,   7},
-    { 14,  25,  24,  15,   8,   25,  20,  15},
-    { 19,  20,  11,   6,   7,    6,  20,  16},
-    { -7,   2, -15, -12, -14,  -15, -10, -10}
+const std::array<int, 64> Evaluation::MG_KNIGHT_TABLE = {{
+   -167, -89, -34, -49,  61, -97, -15, -107,
+    -73, -41,  72,  36,  23,  62,   7,  -17,
+    -47,  60,  37,  65,  84, 129,  73,   44,
+     -9,  17,  19,  53,  37,  69,  18,   22,
+    -13,   4,  16,  13,  28,  19,  21,   -8,
+    -23,  -9,  12,  10,  19,  17,  25,  -16,
+    -29, -53, -12,  -3,  -1,  18, -14,  -19,
+   -105, -21, -58, -33, -17, -28, -19,  -23
 }};
 
-const std::array<std::array<int, 8>, 8> Evaluation::ROOK_SCORES = {{
-    { 35,  29,  33,   4,  37,  33,  56,  50},
-    { 55,  29,  56,  67,  55,  62,  34,  60},
-    { 19,  35,  28,  33,  45,  27,  25,  15},
-    {  0,   5,  16,  13,  18,  -4,  -9,  -6},
-    {-28, -35, -16, -21, -13, -29, -46, -30},
-    {-42, -28, -42, -25, -25, -35, -26, -46},
-    {-53, -38, -31, -26, -29, -43, -44, -53},
-    {-30, -24, -18,   5,  -2, -18, -31, -32}
+const std::array<int, 64> Evaluation::EG_KNIGHT_TABLE = {{
+    -58, -38, -13, -28, -31, -27, -63, -99,
+    -25,  -8, -25,  -2,  -9, -25, -24, -52,
+    -24, -20,  10,   9,  -1,  -9, -19, -41,
+    -17,   3,  22,  22,  22,  11,   8, -18,
+    -18,  -6,  16,  25,  16,  17,   4, -18,
+    -23,  -3,  -1,  15,  10,  -3, -20, -22,
+    -42, -20, -10,  -5,  -2, -20, -23, -44,
+    -29, -51, -23, -15, -22, -18, -50, -64
 }};
 
-const std::array<std::array<int, 8>, 8> Evaluation::QUEEN_SCORES = {{
-    {  6,   1,  -8, -104,  69,  24,  88,  26},
-    { 14,  32,  60,  -10,  20,  76,  57,  24},
-    { -2,  43,  32,   60,  72,  63,  43,   2},
-    {  1, -16,  22,   17,  25,  20, -13,  -6},
-    {-14, -15,  -2,   -5,  -1, -10, -20, -22},
-    {-30,  -6, -13,  -11, -16, -11, -16, -27},
-    {-36, -18,   0,  -19, -15, -15, -21, -38},
-    {-39, -30, -31,  -13, -31, -36, -34, -42}
+const std::array<int, 64> Evaluation::MG_BISHOP_TABLE = {{
+    -29,   4, -82, -37, -25, -42,   7,  -8,
+    -26,  16, -18, -13,  30,  59,  18, -47,
+    -16,  37,  43,  40,  35,  50,  37,  -2,
+     -4,   5,  19,  50,  37,  37,   7,  -2,
+     -6,  13,  13,  26,  34,  12,  10,   4,
+      0,  15,  15,  15,  14,  27,  18,  10,
+      4,  15,  16,   0,   7,  21,  33,   1,
+    -33,  -3, -14, -21, -13, -12, -39, -21
 }};
 
-int Evaluation::pieceValue(PieceType pt) noexcept {
-    switch (pt) {
-        case PieceType::Pawn:   return SCORE_PAWN;
-        case PieceType::Knight: return SCORE_KNIGHT;
-        case PieceType::Bishop: return SCORE_BISHOP;
-        case PieceType::Rook:   return SCORE_ROOK;
-        case PieceType::Queen:  return SCORE_QUEEN;
-        case PieceType::King:   return SCORE_KING;
-        default:                return 0;
+const std::array<int, 64> Evaluation::EG_BISHOP_TABLE = {{
+    -14, -21, -11,  -8,  -7,  -9, -17, -24,
+     -8,  -4,   7, -12,  -3, -13,  -4, -14,
+      2,  -8,   0,  -1,  -2,   6,   0,   4,
+     -3,   9,  12,   9,  14,  10,   3,   2,
+     -6,   3,  13,  19,   7,  10,  -3,  -9,
+    -12,  -3,   8,  10,  13,   3,  -7, -15,
+    -14, -18,  -7,  -1,   4,  -9, -15, -27,
+    -23,  -9, -23,  -5,  -9, -16,  -5, -17
+}};
+
+const std::array<int, 64> Evaluation::MG_ROOK_TABLE = {{
+     32,  42,  32,  51,  63,   9,  31,  43,
+     27,  32,  58,  62,  80,  67,  26,  44,
+     -5,  19,  26,  36,  17,  45,  61,  16,
+    -24, -11,   7,  26,  24,  35,  -8, -20,
+    -36, -26, -12,  -1,   9,  -7,   6, -23,
+    -45, -25, -16, -17,   3,   0,  -5, -33,
+    -44, -16, -20,  -9,  -1,  11,  -6, -71,
+    -19, -13,   1,  17,  16,   7, -37, -26
+}};
+
+const std::array<int, 64> Evaluation::EG_ROOK_TABLE = {{
+     13,  10,  18,  15,  12,  12,   8,   5,
+     11,  13,  13,  11,  -3,   3,   8,   3,
+      7,   7,   7,   5,   4,  -3,  -5,  -3,
+      4,   3,  13,   1,   2,   1,  -1,   2,
+      3,   5,   8,   4,  -5,  -6,  -8, -11,
+     -4,   0,  -5,  -1,  -7, -12,  -8, -16,
+     -6,  -6,   0,   2,  -9,  -9, -11,  -3,
+     -9,   2,   3,  -1,  -5, -13,   4, -20
+}};
+
+const std::array<int, 64> Evaluation::MG_QUEEN_TABLE = {{
+    -28,   0,  29,  12,  59,  44,  43,  45,
+    -24, -39,  -5,   1, -16,  57,  28,  54,
+    -13, -17,   7,   8,  29,  56,  47,  57,
+    -27, -27, -16, -16,  -1,  17,  -2,   1,
+     -9, -26,  -9, -10,  -2,  -4,   3,  -3,
+    -14,   2, -11,  -2,  -5,   2,  14,   5,
+    -35,  -8,  11,   2,   8,  15,  -3,   1,
+     -1, -18,  -9,  10, -15, -25, -48, -18
+}};
+
+const std::array<int, 64> Evaluation::EG_QUEEN_TABLE = {{
+     -9,  22,  22,  27,  27,  19,  10,  20,
+    -17,  20,  32,  41,  58,  25,  30,   0,
+    -20,   6,   9,  49,  47,  35,  19,   9,
+      3,  22,  24,  45,  57,  40,  57,  36,
+    -18,  28,  19,  47,  31,  34,  39,  18,
+    -16, -27,  15,   6,   9,  17,  10,   5,
+    -22, -23, -30, -16, -16, -23, -36, -32,
+    -33, -28, -22, -43,  -5, -32, -20, -41
+}};
+
+const std::array<int, 64> Evaluation::MG_KING_TABLE = {{
+   -65,  23,  16, -15, -56, -34,   2,  13,
+    29,  -1, -20,  -7,  -8,  -4, -38, -29,
+    -9,  24,   2, -16, -20,   6,  22, -22,
+   -17, -20, -12, -27, -30, -25, -14, -36,
+   -49,  -1, -27, -39, -46, -44, -33, -51,
+   -14, -14, -22, -46, -44, -30, -15, -27,
+     1,   7,  -8, -64, -43, -16,   9,   8,
+   -15,  36,  12, -54,   8, -28,  24,  14
+}};
+
+const std::array<int, 64> Evaluation::EG_KING_TABLE = {{
+   -74, -35, -18, -18, -11,  15,   4, -17,
+   -12,  17,  14,  17,  17,  38,  23,  11,
+    10,  17,  23,  15,  20,  45,  44,  13,
+    -8,  22,  24,  27,  26,  33,  26,   3,
+   -18,  -4,  21,  24,  27,  23,   9, -11,
+   -19,  -3,  11,  21,  23,  16,   7,  -9,
+   -27, -11,   4,  13,  14,   4,  -5, -17,
+   -53, -34, -21, -11, -28, -14, -24, -43
+}};
+
+int Evaluation::pieceValue(uint8_t piece) noexcept {
+    switch (piece) {
+        case WHITE_PAWN:
+        case BLACK_PAWN:   return PAWN_VAL;
+        case WHITE_KNIGHT:
+        case BLACK_KNIGHT: return KNIGHT_VAL;
+        case WHITE_BISHOP:
+        case BLACK_BISHOP: return BISHOP_VAL;
+        case WHITE_ROOK:
+        case BLACK_ROOK:   return ROOK_VAL;
+        case WHITE_QUEEN:
+        case BLACK_QUEEN:  return QUEEN_VAL;
+        case WHITE_KING:
+        case BLACK_KING:   return KING_VAL;
+        default:           return 0;
     }
 }
 
-int Evaluation::pieceSquareValue(Piece piece, int row, int col) noexcept {
-    if (piece == Piece::Empty) return 0;
-    PieceType pt = typeOfPiece(piece);
-    if (pt == PieceType::King) return 0; // King has no positional table in Python engine
+int Evaluation::pieceSquareScore(uint8_t piece, uint8_t sq, bool endgame) noexcept {
+    bool isWhite = (piece < 6);
+    uint8_t tableSq = isWhite ? sq : static_cast<uint8_t>((7 - (sq / 8)) * 8 + (sq % 8));
 
-    Color c = colorOfPiece(piece);
-    int table_row = (c == Color::White) ? row : (7 - row); // Black mirrors rows: [::-1]
-
-    switch (pt) {
-        case PieceType::Pawn:   return PAWN_SCORES[table_row][col];
-        case PieceType::Knight: return KNIGHT_SCORES[table_row][col];
-        case PieceType::Bishop: return BISHOP_SCORES[table_row][col];
-        case PieceType::Rook:   return ROOK_SCORES[table_row][col];
-        case PieceType::Queen:  return QUEEN_SCORES[table_row][col];
-        default:                return 0;
+    switch (piece) {
+        case WHITE_PAWN:
+        case BLACK_PAWN:
+            return endgame ? EG_PAWN_TABLE[tableSq] : MG_PAWN_TABLE[tableSq];
+        case WHITE_KNIGHT:
+        case BLACK_KNIGHT:
+            return endgame ? EG_KNIGHT_TABLE[tableSq] : MG_KNIGHT_TABLE[tableSq];
+        case WHITE_BISHOP:
+        case BLACK_BISHOP:
+            return endgame ? EG_BISHOP_TABLE[tableSq] : MG_BISHOP_TABLE[tableSq];
+        case WHITE_ROOK:
+        case BLACK_ROOK:
+            return endgame ? EG_ROOK_TABLE[tableSq] : MG_ROOK_TABLE[tableSq];
+        case WHITE_QUEEN:
+        case BLACK_QUEEN:
+            return endgame ? EG_QUEEN_TABLE[tableSq] : MG_QUEEN_TABLE[tableSq];
+        case WHITE_KING:
+        case BLACK_KING:
+            return endgame ? EG_KING_TABLE[tableSq] : MG_KING_TABLE[tableSq];
+        default:
+            return 0;
     }
 }
 
 int Evaluation::evaluate(const Board& board) noexcept {
-    if (board.isCheckmate()) {
-        return board.whiteToMove() ? -SCORE_CHECKMATE : SCORE_CHECKMATE;
-    }
-    if (board.isStalemate()) {
-        return SCORE_STALEMATE;
-    }
+    const auto* state = board.getState();
+    const auto* bbs = state->bitboards;
 
-    int score = 0;
-    for (int r = 0; r < 8; ++r) {
-        for (int c = 0; c < 8; ++c) {
-            Piece piece = board.pieceAt(r, c);
-            if (piece != Piece::Empty) {
-                PieceType pt = typeOfPiece(piece);
-                int mat = pieceValue(pt);
-                int pos = pieceSquareValue(piece, r, c);
-                if (colorOfPiece(piece) == Color::White) {
-                    score += (mat + pos);
-                } else {
-                    score -= (mat + pos);
-                }
+    int mg_white = 0, mg_black = 0;
+    int eg_white = 0, eg_black = 0;
+    int game_phase = 0;
+
+    // Piece weights for game phase (Total 24)
+    constexpr int KNIGHT_PHASE = 1;
+    constexpr int BISHOP_PHASE = 1;
+    constexpr int ROOK_PHASE   = 2;
+    constexpr int QUEEN_PHASE  = 4;
+
+    for (int p = 0; p < 12; ++p) {
+        uint64_t bb = bbs[p];
+        int val = pieceValue(static_cast<uint8_t>(p));
+        bool isWhite = (p < 6);
+
+        // Accumulate phase
+        int count = popcount(bb);
+        if (p == WHITE_KNIGHT || p == BLACK_KNIGHT) game_phase += count * KNIGHT_PHASE;
+        else if (p == WHITE_BISHOP || p == BLACK_BISHOP) game_phase += count * BISHOP_PHASE;
+        else if (p == WHITE_ROOK || p == BLACK_ROOK) game_phase += count * ROOK_PHASE;
+        else if (p == WHITE_QUEEN || p == BLACK_QUEEN) game_phase += count * QUEEN_PHASE;
+
+        while (bb) {
+            uint8_t sq = lsbIndex(bb);
+            bb &= bb - 1;
+
+            int mg_pst = pieceSquareScore(static_cast<uint8_t>(p), sq, false);
+            int eg_pst = pieceSquareScore(static_cast<uint8_t>(p), sq, true);
+
+            if (isWhite) {
+                mg_white += val + mg_pst;
+                eg_white += val + eg_pst;
+            } else {
+                mg_black += val + mg_pst;
+                eg_black += val + eg_pst;
             }
         }
     }
-    return score;
+
+    // Bishop pair bonuses
+    if (popcount(bbs[WHITE_BISHOP]) >= 2) {
+        mg_white += 30;
+        eg_white += 40;
+    }
+    if (popcount(bbs[BLACK_BISHOP]) >= 2) {
+        mg_black += 30;
+        eg_black += 40;
+    }
+
+    // Tapered evaluation interpolation
+    int mg_score = mg_white - mg_black;
+    int eg_score = eg_white - eg_black;
+
+    int mg_weight = std::clamp(game_phase, 0, 24);
+    int eg_weight = 24 - mg_weight;
+
+    int final_score = (mg_score * mg_weight + eg_score * eg_weight) / 24;
+    return final_score;
 }
 
 } // namespace alphaone

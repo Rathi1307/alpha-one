@@ -1,5 +1,4 @@
 #include "../src/engine/Board.hpp"
-#include "../src/engine/MoveGenerator.hpp"
 #include <iostream>
 #include <chrono>
 #include <cassert>
@@ -8,14 +7,20 @@ using namespace alphaone;
 
 uint64_t perft(Board& board, int depth) {
     if (depth == 0) return 1ULL;
-    auto moves = MoveGenerator::generateLegalMoves(board);
-    if (depth == 1) return moves.size();
+    Move moves[218];
+    int numMoves = 0;
+    board.pseudoMoves(moves, numMoves);
 
     uint64_t nodes = 0;
-    for (const auto& m : moves) {
-        board.makeMove(m);
-        nodes += perft(board, depth - 1);
-        board.undoMove();
+    for (int i = 0; i < numMoves; ++i) {
+        board.move(moves[i]);
+        bool illegal = (board.turn() == BLACK)
+            ? board.isAttacked(board.whiteKingSquare(), BLACK)
+            : board.isAttacked(board.blackKingSquare(), WHITE);
+        if (!illegal) {
+            nodes += perft(board, depth - 1);
+        }
+        board.undo();
     }
     return nodes;
 }

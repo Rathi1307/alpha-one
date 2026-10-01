@@ -2,10 +2,10 @@
 
 #include "Board.hpp"
 #include "Move.hpp"
-#include "MoveGenerator.hpp"
 #include "Evaluation.hpp"
 #include "Search.hpp"
 #include <string>
+#include <string_view>
 #include <vector>
 #include <memory>
 
@@ -26,7 +26,7 @@ public:
     bool isCheckmate() const noexcept { return board_.isCheckmate(); }
     bool isStalemate() const noexcept { return board_.isStalemate(); }
     bool isInCheck() const noexcept { return board_.isInCheck(); }
-    int moveCount() const noexcept { return static_cast<int>(board_.moveCount()); }
+    int moveCount() const noexcept { return board_.moveCount(); }
 
     // Moves
     std::vector<std::string> getLegalMoves();

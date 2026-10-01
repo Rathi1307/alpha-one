@@ -2,103 +2,96 @@
 
 #include "Types.hpp"
 #include "Move.hpp"
+#include "Bitboard.hpp"
 #include "Zobrist.hpp"
-#include <array>
-#include <vector>
+#include <cstdint>
 #include <string>
+#include <string_view>
+#include <vector>
+#include <array>
 
 namespace alphaone {
 
-struct UndoState {
-    Move move;
-    Piece piece_captured = Piece::Empty;
-    uint8_t castling_rights = CastleRights::None;
-    int8_t enpassant_square = -1;
-    int halfmove_clock = 0;
-    uint64_t zobrist_hash = 0ULL;
-    int white_king_sq = -1;
-    int black_king_sq = -1;
-    bool checkmate = false;
-    bool stalemate = false;
-    bool in_check = false;
+struct BoardState {
+    uint64_t bitboards[12];
+    bool WKC;
+    bool BKC;
+    bool WQC;
+    bool BQC;
+    uint64_t passantTarget;
+    uint8_t turn;
+    uint8_t halfMoves;
+    uint64_t hash;
 };
 
 class Board {
 public:
     Board();
     explicit Board(std::string_view fen);
+    ~Board();
 
-    // Position setup
-    void resetToInitialPosition();
-    bool setFromFen(std::string_view fen);
+    // Copy / move
+    Board(const Board& other);
+    Board& operator=(const Board& other);
+
+    // Lifecycle
+    void newGame();
+    bool setPosition(std::string_view fen);
     std::string toFen() const;
 
-    // Python matrix conversion for exact parity testing
-    void setFromPythonMatrix(const std::vector<std::vector<std::string>>& matrix, bool white_to_move = true);
-    std::vector<std::vector<std::string>> toPythonMatrix() const;
-    std::string getPythonHashKey() const;
-
     // Piece access
-    Piece pieceAt(int sq) const noexcept { return board_[sq]; }
-    Piece pieceAt(int row, int col) const noexcept { return board_[makeSquare(row, col)]; }
-    void setPiece(int sq, Piece p) noexcept;
-    void setPiece(int row, int col, Piece p) noexcept { setPiece(makeSquare(row, col), p); }
+    uint8_t getPiece(uint8_t square) const noexcept;
+    void setPiece(uint8_t piece, uint8_t square) noexcept;
 
-    // State queries
-    bool whiteToMove() const noexcept { return white_to_move_; }
-    Color sideToMove() const noexcept { return white_to_move_ ? Color::White : Color::Black; }
-    uint8_t castlingRights() const noexcept { return castling_rights_; }
-    int enPassantSquare() const noexcept { return enpassant_square_; }
-    int whiteKingSquare() const noexcept { return white_king_sq_; }
-    int blackKingSquare() const noexcept { return black_king_sq_; }
-    int kingSquare(Color c) const noexcept { return (c == Color::White) ? white_king_sq_ : black_king_sq_; }
-    int moveCounter() const noexcept { return move_counter_; }
-    int halfmoveClock() const noexcept { return halfmove_clock_; }
-    uint64_t zobristHash() const noexcept { return zobrist_hash_; }
+    // State inspection
+    uint8_t turn() const noexcept { return stateStack_[stackIndex_].turn; }
+    bool whiteToMove() const noexcept { return turn() == WHITE; }
+    Color sideToMove() const noexcept { return whiteToMove() ? Color::White : Color::Black; }
+    uint64_t zobristHash() const noexcept { return stateStack_[stackIndex_].hash; }
+    uint8_t halfMoves() const noexcept { return stateStack_[stackIndex_].halfMoves; }
+    int moveCount() const noexcept { return stackIndex_; }
 
-    bool isCheckmate() const noexcept { return checkmate_; }
-    bool isStalemate() const noexcept { return stalemate_; }
-    bool isInCheck() const noexcept { return in_check_; }
+    uint8_t whiteKingSquare() const noexcept { return lsbIndex(stateStack_[stackIndex_].bitboards[WHITE_KING]); }
+    uint8_t blackKingSquare() const noexcept { return lsbIndex(stateStack_[stackIndex_].bitboards[BLACK_KING]); }
+    uint8_t kingSquare(Color c) const noexcept { return (c == Color::White) ? whiteKingSquare() : blackKingSquare(); }
 
-    void setStatus(bool in_check, bool checkmate, bool stalemate) noexcept {
-        in_check_ = in_check;
-        checkmate_ = checkmate;
-        stalemate_ = stalemate;
-    }
+    const BoardState* getState() const noexcept { return &stateStack_[stackIndex_]; }
+    BoardState* getState() noexcept { return &stateStack_[stackIndex_]; }
 
-    // Move execution
-    void makeMove(const Move& move);
-    void undoMove();
+    // Moves
+    void move(const Move& m) noexcept;
+    void undo() noexcept;
 
-    const std::vector<Move>& moveLog() const noexcept { return move_log_; }
-    size_t moveCount() const noexcept { return move_log_.size(); }
+    void pseudoMoves(Move* moves, int& numMoves) const noexcept;
+    std::vector<Move> generateLegalMoves() const;
+    bool isLegal(const Move& m) const noexcept;
+    bool isAttacked(uint8_t square, uint8_t attackerColor) const noexcept;
+
+    // Game end / checks
+    bool isInCheck() const noexcept;
+    bool isCheckmate() const noexcept;
+    bool isStalemate() const noexcept;
+    bool softDraw() const noexcept;
+    uint8_t isTerminal() const noexcept;
+
+    // Debugging
+    void print() const;
 
     // Hash computation from scratch
-    uint64_t computeZobristHash() const noexcept;
-
-    // Pretty printing for debugging
-    void print() const;
-    std::string toString() const;
+    uint64_t computeHash() const noexcept;
 
 private:
-    void updateCastleRights(const Move& move) noexcept;
+    static void initAttackTables() noexcept;
 
-    std::array<Piece, 64> board_{};
-    bool white_to_move_ = true;
-    uint8_t castling_rights_ = CastleRights::All;
-    int8_t enpassant_square_ = -1; // square index where en-passant capture can land, or -1
-    int white_king_sq_ = makeSquare(7, 4); // e1 = 60
-    int black_king_sq_ = makeSquare(0, 4); // e8 = 4
-    int move_counter_ = 0;
-    int halfmove_clock_ = 0;
-    uint64_t zobrist_hash_ = 0ULL;
+    static bool tables_initialized_;
+    static uint64_t knightAttacks_[64];
+    static uint64_t kingAttacks_[64];
+    static uint64_t diagonalRays_[64][4];
+    static uint64_t cardinalRays_[64][4];
 
-    bool in_check_ = false;
-    bool checkmate_ = false;
-    bool stalemate_ = false;
-
-    std::vector<Move> move_log_;
-    std::vector<UndoState> undo_stack_;
+    BoardState* stateStack_ = nullptr;
+    int stackIndex_ = 0;
+    static constexpr int MAX_STACK = 1024;
 };
 
 } // namespace alphaone

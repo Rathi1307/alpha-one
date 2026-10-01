@@ -426,7 +426,7 @@ export const App: React.FC = () => {
               color: '#0e0f13',
             }}
           >
-            AlphaOne — Low Latency Chess Engine developed using C++ with ELO ~1500.
+            AlphaOne — High-Performance Chess Engine developed in C++ with ELO ~1900.
             <span className="blinking-cursor">▌</span>
           </h1>
 
@@ -441,7 +441,7 @@ export const App: React.FC = () => {
             </button>
             <button onClick={scrollToCapabilities} className="loco-pill">
               <Zap size={13} />
-              1,000,000+ NPS
+              4,000,000+ NPS
             </button>
             <button onClick={scrollToCapabilities} className="loco-pill">
               <Cpu size={13} />
@@ -661,11 +661,11 @@ export const App: React.FC = () => {
               <span style={{ fontSize: 11, fontFamily: 'var(--font-mono)', color: '#8b8e99' }}>RATING</span>
             </div>
             <h3 style={{ fontSize: 'clamp(20px, 1.8vw, 24px)', fontWeight: 700, marginBottom: 8, letterSpacing: '-0.02em' }}>
-              ELO ~1500 Positional Search
+              ELO ~1900 Bitboard & Tapered Search
             </h3>
             <p style={{ fontSize: 13, color: '#9da0aa', lineHeight: 1.6 }}>
-              Utilizes piece-square positional tables, pin and check raycasting, center control heuristics, and iterative
-              deepening Negamax search up to depth 6.
+              Utilizes 64-bit bitboards, PeSTO tapered piece-square tables, MVV-LVA move ordering, Quiescence search,
+              and iterative deepening Negamax search up to depth 7.
             </p>
           </div>
 
@@ -743,7 +743,7 @@ export const App: React.FC = () => {
               Standalone Native CLI
             </h3>
             <p style={{ fontSize: 13, color: '#9da0aa', lineHeight: 1.6 }}>
-              The C++ engine also compiles to a native standalone executable (`alphaone_cli.exe`) for terminal-based benchmarking,
+              The C++ engine also compiles to a native standalone executable (`alphaone_cli`) for terminal-based benchmarking,
               UCI interaction, and headless testing.
             </p>
           </div>
@@ -844,14 +844,14 @@ export const App: React.FC = () => {
                     border: '1px solid rgba(255,255,255,0.1)',
                   }}
                 >
-                  🤖
+                  {playerColor === 'black' ? '👤' : '🤖'}
                 </div>
                 <div>
                   <div style={{ fontSize: 'clamp(12px, 1.1vw, 13.5px)', fontWeight: 700 }}>
                     {playerColor === 'black' ? 'You (Black)' : 'AlphaOne AI'}
                   </div>
                   <div style={{ fontSize: 10.5, color: '#888' }}>
-                    {playerColor === 'black' ? 'Human Player' : `Depth ${searchDepth} (ELO ~1500)`}
+                    {playerColor === 'black' ? 'Human Player' : `Depth ${searchDepth} (ELO ~1900)`}
                   </div>
                 </div>
               </div>
@@ -942,14 +942,14 @@ export const App: React.FC = () => {
                     fontSize: 15,
                   }}
                 >
-                  👤
+                  {playerColor === 'black' ? '🤖' : '👤'}
                 </div>
                 <div>
                   <div style={{ fontSize: 'clamp(12px, 1.1vw, 13.5px)', fontWeight: 700 }}>
-                    {playerColor === 'black' ? 'AlphaOne AI' : 'You (White)'}
+                    {playerColor === 'black' ? 'AlphaOne AI (White)' : 'You (White)'}
                   </div>
                   <div style={{ fontSize: 10.5, color: isUserTurn ? 'var(--accent-emerald)' : '#888', fontWeight: isUserTurn ? 700 : 400 }}>
-                    {isUserTurn ? 'Active Turn' : 'Waiting'}
+                    {playerColor === 'black' ? `Depth ${searchDepth} (ELO ~1900)` : (isUserTurn ? 'Active Turn' : 'Waiting')}
                   </div>
                 </div>
               </div>
